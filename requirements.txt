@@ -1,0 +1,5 @@
+# Thread Pool Management System — CSE316 CA2
+# Core modules used: threading, queue, tkinter (all built-in to Python 3.x)
+# Optional: matplotlib for performance charts
+
+matplotlib>=3.7.0   # optional — for benchmark charts (Module 3)
