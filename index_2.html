@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Thread Pool Management System — CSE316</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+<style>
+/* ── CSS Variables ─────────────────────────────────────────── */
+:root {
+  --bg:        #0a0c10;
+  --surface:   #111520;
+  --card:      #161b2a;
+  --border:    #1e2740;
+  --idle:      #00e5a0;
+  --running:   #f5a623;
+  --term:      #ff4d6d;
+  --accent:    #4f8dff;
+  --text:      #d4deff;
+  --muted:     #4a5578;
+  --white:     #ffffff;
+  --glow-idle:    0 0 18px #00e5a055;
+  --glow-run:     0 0 18px #f5a62355;
+  --glow-term:    0 0 18px #ff4d6d55;
+  --glow-accent:  0 0 18px #4f8dff44;
+  --mono: 'Space Mono', monospace;
+  --display: 'Syne', sans-serif;
+}
+
+/* ── Reset & Base ───────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  min-height: 100vh;
+  overflow-x: hidden;
+  cursor: default;
+}
+
+/* ── Animated grid background ──────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(79,141,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79,141,255,0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Glowing orbs ───────────────────────────────────────────── */
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+  z-index: 0;
+  animation: drift 14s ease-in-out infinite alternate;
+}
+.orb-1 { width: 500px; height: 500px; background: #4f8dff18; top: -120px; left: -100px; }
+.orb-2 { width: 380px; height: 380px; background: #00e5a012; top: 60%; right: -80px; animation-delay: -5s; }
+.orb-3 { width: 300px; height: 300px; background: #f5a62310; bottom: -60px; left: 35%; animation-delay: -9s; }
+
+@keyframes drift {
+  from { transform: translate(0, 0); }
+  to   { transform: translate(30px, 20px); }
+}
+
+/* ── Layout ─────────────────────────────────────────────────── */
+.wrapper {
+  position: relative;
+  z-index: 1;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 32px 80px;
+}
+
+/* ── Header ─────────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 32px 0 40px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 48px;
+  animation: fadeDown 0.7s ease both;
+}
+
+.logo-block { display: flex; align-items: center; gap: 16px; }
+
+.logo-icon {
+  width: 44px; height: 44px;
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  box-shadow: var(--glow-accent);
+  animation: pulse-border 3s ease infinite;
+}
+
+@keyframes pulse-border {
+  0%,100% { box-shadow: var(--glow-accent); }
+  50%      { box-shadow: 0 0 28px #4f8dff88; }
+}
+
+.logo-text h1 {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: var(--white);
+  line-height: 1;
+}
+
+.logo-text span {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+.badge {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+/* ── Hero ───────────────────────────────────────────────────── */
+.hero {
+  text-align: center;
+  padding: 64px 0 72px;
+  animation: fadeUp 0.8s ease both 0.1s;
+}
+
+.hero-tag {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--idle);
+  border: 1px solid #00e5a030;
+  padding: 5px 18px;
+  border-radius: 999px;
+  margin-bottom: 28px;
+  background: #00e5a008;
+}
+
+.hero h2 {
+  font-family: var(--display);
+  font-size: clamp(36px, 6vw, 72px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -2px;
+  color: var(--white);
+  margin-bottom: 24px;
+}
+
+.hero h2 em {
+  font-style: normal;
+  background: linear-gradient(90deg, var(--accent), var(--idle));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero p {
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--muted);
+  max-width: 600px;
+  margin: 0 auto 40px;
+}
+
+.hero-cta {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 28px;
+  border-radius: 10px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--white);
+  box-shadow: 0 4px 20px #4f8dff40;
+}
+.btn-primary:hover { background: #6ba3ff; transform: translateY(-2px); box-shadow: 0 8px 28px #4f8dff55; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
+
+/* ── Section headers ────────────────────────────────────────── */
+.section { margin-bottom: 80px; animation: fadeUp 0.8s ease both; }
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.section-number {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  font-weight: 700;
+}
+.section-title {
+  font-family: var(--display);
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--white);
+  letter-spacing: -0.5px;
+}
+.section-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border), transparent);
+}
+
+/* ── Interactive Demo ───────────────────────────────────────── */
+.demo-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 32px;
+  position: relative;
+  overflow: hidden;
+}
+
+.demo-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #4f8dff06 0%, transparent 60%);
+  pointer-events: none;
+}
+
+/* Controls row */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  margin-bottom: 32px;
+  position: relative;
+}
+
+.control-group { display: flex; flex-direction: column; gap: 8px; }
+
+.control-label {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.control-input {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  width: 100px;
+  transition: border-color 0.2s;
+  outline: none;
+}
+.control-input:focus { border-color: var(--accent); }
+
+.control-range { width: 160px; accent-color: var(--accent); cursor: pointer; }
+
+.control-val {
+  font-size: 12px;
+  color: var(--accent);
+  min-width: 32px;
+  text-align: center;
+}
+
+.btn-start  { background: var(--idle);    color: #000; }
+.btn-start:hover  { background: #00ffc0; transform: translateY(-2px); }
+.btn-stop   { background: var(--term);    color: #fff; }
+.btn-stop:hover   { background: #ff6b87; transform: translateY(-2px); }
+.btn-submit { background: var(--accent);  color: #fff; }
+.btn-submit:hover { background: #6ba3ff; transform: translateY(-2px); }
+.btn-batch  { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+.btn-batch:hover  { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
+
+/* Thread grid */
+.thread-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 14px;
+  margin-bottom: 32px;
+}
+
+.thread-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  animation: cardIn 0.4s ease both;
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.thread-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--muted);
+  transition: all 0.3s ease;
+}
+
+.thread-card.idle::before    { background: var(--idle);    box-shadow: var(--glow-idle); }
+.thread-card.running::before { background: var(--running); box-shadow: var(--glow-run); }
+.thread-card.terminated::before { background: var(--term); }
+
+.thread-card.running {
+  border-color: #f5a62330;
+  box-shadow: 0 4px 24px #f5a62310;
+}
+
+.thread-dot {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.thread-card.idle    .thread-dot { background: var(--idle);    box-shadow: var(--glow-idle); }
+.thread-card.running .thread-dot { background: var(--running);  box-shadow: var(--glow-run); animation: blink 1s ease infinite; }
+.thread-card.terminated .thread-dot { background: var(--term); opacity: 0.6; }
+
+@keyframes blink {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+.thread-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.5px;
+}
+
+.thread-state {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  transition: color 0.3s;
+}
+
+.thread-card.idle    .thread-state { color: var(--idle); }
+.thread-card.running .thread-state { color: var(--running); }
+.thread-card.terminated .thread-state { color: var(--term); }
+
+.thread-task {
+  font-size: 9px;
+  color: var(--muted);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+/* Progress bar for running tasks */
+.thread-progress {
+  width: 100%;
+  height: 2px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.thread-progress-inner {
+  height: 100%;
+  background: var(--running);
+  width: 0%;
+  border-radius: 2px;
+  transition: width 0.1s linear;
+}
+
+/* Stats row */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.stat-card-label {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.stat-card-value {
+  font-family: var(--display);
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--white);
+  line-height: 1;
+  transition: color 0.3s;
+}
+
+.stat-card-value.highlight { color: var(--idle); }
+
+/* Queue visualizer */
+.queue-row {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  overflow: hidden;
+}
+
+.queue-label {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.queue-items {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+.queue-item {
+  background: var(--accent);
+  color: var(--white);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  animation: popIn 0.3s ease both;
+}
+
+@keyframes popIn {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+.queue-empty {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Log */
+.log-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  height: 160px;
+  overflow-y: auto;
+  font-size: 11px;
+  line-height: 1.8;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.log-line { display: flex; gap: 12px; }
+.log-time { color: var(--muted); flex-shrink: 0; }
+.log-msg  { color: var(--text); }
+.log-msg.ok   { color: var(--idle); }
+.log-msg.warn { color: var(--running); }
+.log-msg.err  { color: var(--term); }
+
+/* ── Module cards ───────────────────────────────────────────── */
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.module-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s ease, border-color 0.3s ease;
+}
+
+.module-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent);
+}
+
+.module-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0; right: 0;
+  width: 80px; height: 80px;
+  background: var(--accent);
+  opacity: 0.03;
+  border-radius: 50%;
+  transform: translate(30px, 30px);
+}
+
+.module-num {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+
+.module-title {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--white);
+  margin-bottom: 12px;
+  letter-spacing: -0.3px;
+}
+
+.module-desc {
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+
+.module-file {
+  display: inline-block;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--idle);
+  letter-spacing: 0.5px;
+}
+
+.module-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.tag {
+  background: var(--border);
+  color: var(--text);
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.5px;
+}
+
+/* ── Benchmark chart ────────────────────────────────────────── */
+.bench-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 700px) { .bench-grid { grid-template-columns: 1fr; } }
+
+.bench-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.bench-title {
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+
+.bar-group {
+  margin-bottom: 18px;
+}
+
+.bar-group-label {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.bar-name {
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  width: 90px;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.bar-track {
+  flex: 1;
+  height: 12px;
+  background: var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  animation: growBar 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transform-origin: left;
+}
+
+@keyframes growBar {
+  from { width: 0% !important; }
+  to   { }
+}
+
+.bar-fill.pool { background: linear-gradient(90deg, var(--idle), #00c080); }
+.bar-fill.tpt  { background: linear-gradient(90deg, var(--term), #c02040); }
+
+.bar-val {
+  font-size: 10px;
+  color: var(--text);
+  width: 48px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Tech stack ─────────────────────────────────────────────── */
+.tech-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.tech-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.tech-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+
+.tech-icon {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  background: var(--border);
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.tech-name { font-size: 13px; font-weight: 700; color: var(--white); }
+.tech-type { font-size: 10px; color: var(--muted); }
+
+/* ── Flow diagram ───────────────────────────────────────────── */
+.flow {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+  padding-left: 32px;
+}
+
+.flow::before {
+  content: '';
+  position: absolute;
+  left: 12px; top: 24px; bottom: 24px;
+  width: 2px;
+  background: linear-gradient(180deg, var(--accent), var(--idle), var(--running));
+  border-radius: 2px;
+}
+
+.flow-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 20px 0;
+  position: relative;
+}
+
+.flow-dot {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 2px solid var(--accent);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+  position: absolute;
+  left: -44px;
+  top: 20px;
+}
+
+.flow-content {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  flex: 1;
+  transition: border-color 0.2s;
+}
+.flow-content:hover { border-color: var(--accent); }
+
+.flow-step-title { font-size: 13px; font-weight: 700; color: var(--white); margin-bottom: 4px; }
+.flow-step-desc  { font-size: 11px; color: var(--muted); line-height: 1.6; }
+.flow-step-code  {
+  margin-top: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 11px;
+  color: var(--idle);
+  letter-spacing: 0.3px;
+  line-height: 1.6;
+}
+
+/* ── Footer ─────────────────────────────────────────────────── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 32px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--muted);
+  flex-wrap: wrap;
+  gap: 12px;
+  animation: fadeUp 0.8s ease both;
+}
+
+footer a { color: var(--accent); text-decoration: none; }
+
+/* ── Scroll animations ──────────────────────────────────────── */
+@keyframes fadeUp   { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+@keyframes fadeDown { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: none; } }
+
+.reveal { opacity: 0; transform: translateY(28px); transition: opacity 0.7s ease, transform 0.7s ease; }
+.reveal.visible { opacity: 1; transform: none; }
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .wrapper { padding: 0 16px 60px; }
+  header { flex-direction: column; gap: 16px; text-align: center; }
+  .controls { flex-direction: column; }
+  .hero h2 { letter-spacing: -1px; }
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+</style>
+</head>
+<body>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<div class="wrapper">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo-block">
+      <div class="logo-icon">⚙</div>
+      <div class="logo-text">
+        <h1>ThreadPool OS</h1>
+        <span>CSE316 · CA2 · Roll 7–9 CC</span>
+      </div>
+    </div>
+    <div class="badge">Operating Systems</div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-tag">CSE316 CA2 Project</div>
+    <h2>Thread Pool<br/><em>Management System</em></h2>
+    <p>A concurrent server application framework demonstrating thread creation, reuse, synchronization, and graceful termination — visualized in real time.</p>
+    <div class="hero-cta">
+      <a href="#demo" class="btn btn-primary">▶ Live Demo</a>
+      <a href="#modules" class="btn btn-ghost">View Modules</a>
+    </div>
+  </section>
+
+  <!-- INTERACTIVE DEMO -->
+  <section class="section reveal" id="demo">
+    <div class="section-header">
+      <span class="section-number">01</span>
+      <h2 class="section-title">Interactive Simulator</h2>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="demo-panel">
+      <!-- Controls -->
+      <div class="controls">
+        <div class="control-group">
+          <span class="control-label">Pool Size</span>
+          <input type="number" class="control-input" id="poolSize" value="4" min="1" max="12" />
+        </div>
+        <div class="control-group">
+          <span class="control-label">Task Duration (s)</span>
+          <input type="range" class="control-range" id="taskDuration" min="0.5" max="5" step="0.5" value="2" />
+          <span class="control-val" id="durationVal">2.0s</span>
+        </div>
+        <button class="btn btn-start" id="btnStart" onclick="startPool()">▶ Start Pool</button>
+        <button class="btn btn-stop" id="btnStop" onclick="stopPool()" disabled>■ Shutdown</button>
+        <button class="btn btn-submit" id="btnSubmit" onclick="submitTask()" disabled>+ Task</button>
+        <button class="btn btn-batch" id="btnBatch" onclick="submitBatch()" disabled>+ Batch (5)</button>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-card-label">Submitted</div>
+          <div class="stat-card-value" id="statSubmitted">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Running</div>
+          <div class="stat-card-value" id="statRunning">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Completed</div>
+          <div class="stat-card-value highlight" id="statCompleted">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Queue Depth</div>
+          <div class="stat-card-value" id="statQueue">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Throughput</div>
+          <div class="stat-card-value" id="statThroughput">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Pool Util %</div>
+          <div class="stat-card-value" id="statUtil">—</div>
+        </div>
+      </div>
+
+      <!-- Queue visualizer -->
+      <div class="queue-row">
+        <span class="queue-label">Task Queue</span>
+        <div class="queue-items" id="queueItems">
+          <span class="queue-empty">No tasks queued</span>
+        </div>
+      </div>
+
+      <!-- Thread cards -->
+      <div class="thread-grid" id="threadGrid"></div>
+
+      <!-- Log -->
+      <div class="log-box" id="logBox"></div>
+    </div>
+  </section>
+
+  <!-- MODULES -->
+  <section class="section reveal" id="modules">
+    <div class="section-header">
+      <span class="section-number">02</span>
+      <h2 class="section-title">Module-Wise Breakdown</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="module-grid">
+      <div class="module-card">
+        <div class="module-num">Module 01</div>
+        <div class="module-title">Core Thread Pool Engine</div>
+        <div class="module-desc">The backbone of the system. Manages worker thread lifecycle — creation, reuse, synchronization via mutexes and condition variables, and graceful shutdown using the poison-pill pattern.</div>
+        <span class="module-file">thread_pool.py</span>
+        <div class="module-tags">
+          <span class="tag">threading</span>
+          <span class="tag">queue.Queue</span>
+          <span class="tag">mutex</span>
+          <span class="tag">condition var</span>
+        </div>
+      </div>
+      <div class="module-card">
+        <div class="module-num">Module 02</div>
+        <div class="module-title">GUI Visualization Dashboard</div>
+        <div class="module-desc">Real-time visual interface showing each worker thread as a color-coded card (Idle / Running / Terminated). Includes task submission controls, live statistics, and an activity log.</div>
+        <span class="module-file">gui_dashboard.py</span>
+        <div class="module-tags">
+          <span class="tag">tkinter</span>
+          <span class="tag">after() loop</span>
+          <span class="tag">real-time UI</span>
+        </div>
+      </div>
+      <div class="module-card">
+        <div class="module-num">Module 03</div>
+        <div class="module-title">Performance Analysis</div>
+        <div class="module-desc">Benchmarks thread pool against the naive thread-per-task approach across 10, 25, 50, and 100 tasks. Exports CSV logs and generates matplotlib bar charts comparing total time and throughput.</div>
+        <span class="module-file">performance_analysis.py</span>
+        <div class="module-tags">
+          <span class="tag">matplotlib</span>
+          <span class="tag">csv export</span>
+          <span class="tag">benchmarking</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FLOW DIAGRAM -->
+  <section class="section reveal">
+    <div class="section-header">
+      <span class="section-number">03</span>
+      <h2 class="section-title">System Flow</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-dot">1</div>
+        <div class="flow-content">
+          <div class="flow-step-title">Pool Initialization</div>
+          <div class="flow-step-desc">ThreadPool spawns N worker threads at startup. Each thread enters a blocking wait on the shared task queue.</div>
+          <div class="flow-step-code">pool = ThreadPool(pool_size=4)<br/>pool.start()  # spawns 4 WorkerThreads</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot">2</div>
+        <div class="flow-content">
+          <div class="flow-step-title">Task Submission</div>
+          <div class="flow-step-desc">Client calls pool.submit(fn, args). Task is wrapped in a Task object with timestamps and pushed to the thread-safe queue.</div>
+          <div class="flow-step-code">task = pool.submit(my_fn, args=(42,))<br/>stats["tasks_submitted"] += 1</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot">3</div>
+        <div class="flow-content">
+          <div class="flow-step-title">Task Pickup & Execution</div>
+          <div class="flow-step-desc">An idle worker wakes via condition variable signal, dequeues the task, records started_at, and executes the function.</div>
+          <div class="flow-step-code">task = queue.get(timeout=0.5)<br/>task.started_at = time.time()<br/>task.result = task.fn(*task.args)</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot">4</div>
+        <div class="flow-content">
+          <div class="flow-step-title">Completion & Reuse</div>
+          <div class="flow-step-desc">Worker records completed_at, calls task_done(), appends to completed_tasks, and returns to idle — ready for the next task.</div>
+          <div class="flow-step-code">task.completed_at = time.time()<br/>queue.task_done()<br/>self.state = "idle"</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot">5</div>
+        <div class="flow-content">
+          <div class="flow-step-title">Graceful Shutdown</div>
+          <div class="flow-step-desc">pool.shutdown() sends one poison-pill (None) per active worker. Each worker finishes its current task, then exits cleanly.</div>
+          <div class="flow-step-code">for _ in active_workers:<br/>    queue.put(None)  # poison pill<br/>for w in workers: w.join()</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BENCHMARK -->
+  <section class="section reveal">
+    <div class="section-header">
+      <span class="section-number">04</span>
+      <h2 class="section-title">Benchmark Results</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="bench-grid">
+      <div class="bench-card">
+        <div class="bench-title">Total Execution Time (s) — lower is better</div>
+        <div id="timeChart"></div>
+      </div>
+      <div class="bench-card">
+        <div class="bench-title">Throughput (tasks/sec) — higher is better</div>
+        <div id="throughputChart"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TECH STACK -->
+  <section class="section reveal">
+    <div class="section-header">
+      <span class="section-number">05</span>
+      <h2 class="section-title">Technology Stack</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="tech-grid">
+      <div class="tech-card"><div class="tech-icon">🐍</div><div><div class="tech-name">Python 3.x</div><div class="tech-type">Core Language</div></div></div>
+      <div class="tech-card"><div class="tech-icon">🧵</div><div><div class="tech-name">threading</div><div class="tech-type">Built-in module</div></div></div>
+      <div class="tech-card"><div class="tech-icon">📦</div><div><div class="tech-name">queue.Queue</div><div class="tech-type">Thread-safe queue</div></div></div>
+      <div class="tech-card"><div class="tech-icon">🖥️</div><div><div class="tech-name">tkinter</div><div class="tech-type">GUI dashboard</div></div></div>
+      <div class="tech-card"><div class="tech-icon">📊</div><div><div class="tech-name">matplotlib</div><div class="tech-type">Charts & plots</div></div></div>
+      <div class="tech-card"><div class="tech-icon">📁</div><div><div class="tech-name">csv / logging</div><div class="tech-type">Logging & export</div></div></div>
+      <div class="tech-card"><div class="tech-icon">🐙</div><div><div class="tech-name">Git + GitHub</div><div class="tech-type">Version control</div></div></div>
+      <div class="tech-card"><div class="tech-icon">🌐</div><div><div class="tech-name">HTML / CSS / JS</div><div class="tech-type">Frontend report</div></div></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Thread Pool Management System · CSE316 CA2 · Roll 7–9 CC</span>
+    <span>Built with Python 3 · <a href="#">GitHub Repo</a></span>
+  </footer>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────
+let pool = null;
+let taskIdCounter = 0;
+let completedCount = 0;
+let submittedCount = 0;
+let startTime = null;
+let tickInterval = null;
+
+// ─── Pool simulation ──────────────────────────────────────────
+class SimWorker {
+  constructor(id) {
+    this.id = id;
+    this.name = `Worker-${id}`;
+    this.state = 'idle';    // idle | running | terminated
+    this.task = null;
+    this.progress = 0;
+    this.progressInterval = null;
+  }
+
+  assignTask(task, duration, onDone) {
+    this.state = 'running';
+    this.task = task;
+    this.progress = 0;
+    const steps = 40;
+    const stepMs = (duration * 1000) / steps;
+    this.progressInterval = setInterval(() => {
+      this.progress = Math.min(100, this.progress + (100 / steps));
+      if (this.progress >= 100) {
+        clearInterval(this.progressInterval);
+        this.state = 'idle';
+        this.task = null;
+        this.progress = 0;
+        onDone();
+      }
+      renderThreads();
+    }, stepMs);
+  }
+
+  terminate() {
+    clearInterval(this.progressInterval);
+    this.state = 'terminated';
+    this.task = null;
+    this.progress = 0;
+  }
+}
+
+class SimPool {
+  constructor(size) {
+    this.workers = Array.from({length: size}, (_, i) => new SimWorker(i + 1));
+    this.queue = [];
+    this.running = true;
+    startTime = Date.now();
+  }
+
+  submit(task) {
+    submittedCount++;
+    const idle = this.workers.find(w => w.state === 'idle');
+    if (idle) {
+      this._run(idle, task);
+    } else {
+      this.queue.push(task);
+    }
+    updateStats();
+    renderQueue();
+  }
+
+  _run(worker, task) {
+    worker.assignTask(task, task.duration, () => {
+      completedCount++;
+      log(`${worker.name} completed Task #${task.id}`, 'ok');
+      if (this.queue.length > 0 && this.running) {
+        const next = this.queue.shift();
+        renderQueue();
+        this._run(worker, next);
+      }
+      updateStats();
+      renderThreads();
+    });
+    log(`${worker.name} picked up Task #${task.id} (${task.duration}s)`, 'warn');
+    renderThreads();
+    updateStats();
+  }
+
+  shutdown() {
+    this.running = false;
+    this.queue = [];
+    this.workers.forEach(w => {
+      if (w.state !== 'running') w.terminate();
+      else {
+        const orig = w.progressInterval;
+        const checkDone = setInterval(() => {
+          if (w.state === 'idle') { w.terminate(); clearInterval(checkDone); renderThreads(); }
+        }, 200);
+      }
+    });
+    renderQueue();
+    renderThreads();
+    updateStats();
+  }
+}
+
+// ─── Controls ─────────────────────────────────────────────────
+function startPool() {
+  const size = parseInt(document.getElementById('poolSize').value) || 4;
+  pool = new SimPool(size);
+  submittedCount = 0; completedCount = 0;
+  document.getElementById('btnStart').disabled = true;
+  document.getElementById('btnStop').disabled = false;
+  document.getElementById('btnSubmit').disabled = false;
+  document.getElementById('btnBatch').disabled = false;
+  renderThreads();
+  updateStats();
+  log(`Pool started with ${size} worker threads.`, 'ok');
+  tickInterval = setInterval(updateStats, 500);
+}
+
+function stopPool() {
+  if (!pool) return;
+  pool.shutdown();
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnStop').disabled = true;
+  document.getElementById('btnSubmit').disabled = true;
+  document.getElementById('btnBatch').disabled = true;
+  clearInterval(tickInterval);
+  log('Pool shutdown initiated. Workers finishing current tasks...', 'err');
+}
+
+function submitTask() {
+  if (!pool) return;
+  taskIdCounter++;
+  const duration = parseFloat(document.getElementById('taskDuration').value);
+  pool.submit({ id: taskIdCounter, duration });
+  log(`Task #${taskIdCounter} submitted (duration: ${duration}s)`);
+}
+
+function submitBatch() {
+  for (let i = 0; i < 5; i++) submitTask();
+}
+
+// ─── Rendering ────────────────────────────────────────────────
+function renderThreads() {
+  if (!pool) return;
+  const grid = document.getElementById('threadGrid');
+  grid.innerHTML = '';
+  pool.workers.forEach(w => {
+    const card = document.createElement('div');
+    card.className = `thread-card ${w.state}`;
+    card.innerHTML = `
+      <div class="thread-dot"></div>
+      <div class="thread-name">${w.name}</div>
+      <div class="thread-state">${w.state.toUpperCase()}</div>
+      <div class="thread-task">${w.task ? 'Task #' + w.task.id : '—'}</div>
+      <div class="thread-progress">
+        <div class="thread-progress-inner" style="width:${w.progress}%"></div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function renderQueue() {
+  if (!pool) return;
+  const el = document.getElementById('queueItems');
+  if (pool.queue.length === 0) {
+    el.innerHTML = '<span class="queue-empty">No tasks queued</span>';
+  } else {
+    el.innerHTML = pool.queue.map(t =>
+      `<span class="queue-item">Task #${t.id}</span>`
+    ).join('');
+  }
+}
+
+function updateStats() {
+  if (!pool) return;
+  const running = pool.workers.filter(w => w.state === 'running').length;
+  const total = pool.workers.length;
+  const elapsed = startTime ? ((Date.now() - startTime) / 1000) : 1;
+  const throughput = completedCount > 0 ? (completedCount / elapsed).toFixed(1) : '—';
+  const util = total > 0 ? Math.round((running / total) * 100) : 0;
+
+  document.getElementById('statSubmitted').textContent = submittedCount;
+  document.getElementById('statRunning').textContent = running;
+  document.getElementById('statCompleted').textContent = completedCount;
+  document.getElementById('statQueue').textContent = pool.queue.length;
+  document.getElementById('statThroughput').textContent = throughput !== '—' ? throughput + '/s' : '—';
+  document.getElementById('statUtil').textContent = total > 0 ? util + '%' : '—';
+}
+
+// ─── Log ──────────────────────────────────────────────────────
+function log(msg, type = '') {
+  const box = document.getElementById('logBox');
+  const ts = new Date().toLocaleTimeString('en-GB');
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="log-time">[${ts}]</span><span class="log-msg ${type}">${msg}</span>`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ─── Duration slider ──────────────────────────────────────────
+document.getElementById('taskDuration').addEventListener('input', function() {
+  document.getElementById('durationVal').textContent = parseFloat(this.value).toFixed(1) + 's';
+});
+
+// ─── Benchmark charts ─────────────────────────────────────────
+const benchData = [
+  { tasks: 10,  poolTime: 0.208, tptTime: 0.245, poolTP: 48.1, tptTP: 40.8 },
+  { tasks: 25,  poolTime: 0.505, tptTime: 0.615, poolTP: 49.5, tptTP: 40.7 },
+  { tasks: 50,  poolTime: 0.890, tptTime: 1.165, poolTP: 56.1, tptTP: 42.9 },
+  { tasks: 100, poolTime: 1.873, tptTime: 2.341, poolTP: 53.4, tptTP: 42.7 },
+];
+
+function buildBarChart(containerId, data, accessor, fmt, maxVal) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = data.map(d => {
+    const poolPct = (accessor(d, 'pool') / maxVal * 100).toFixed(1);
+    const tptPct  = (accessor(d, 'tpt')  / maxVal * 100).toFixed(1);
+    return `
+      <div class="bar-group">
+        <div class="bar-group-label">${d.tasks} tasks</div>
+        <div class="bar-row">
+          <span class="bar-name">Thread Pool</span>
+          <div class="bar-track"><div class="bar-fill pool" style="width:${poolPct}%"></div></div>
+          <span class="bar-val">${fmt(accessor(d,'pool'))}</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-name">Thread-per-Task</span>
+          <div class="bar-track"><div class="bar-fill tpt" style="width:${tptPct}%"></div></div>
+          <span class="bar-val">${fmt(accessor(d,'tpt'))}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+buildBarChart('timeChart', benchData,
+  (d, t) => t === 'pool' ? d.poolTime : d.tptTime,
+  v => v.toFixed(3) + 's', 2.341);
+
+buildBarChart('throughputChart', benchData,
+  (d, t) => t === 'pool' ? d.poolTP : d.tptTP,
+  v => v.toFixed(1) + '/s', 56.1);
+
+// ─── Scroll reveal ────────────────────────────────────────────
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
